@@ -1,10 +1,13 @@
 from fastapi import FastAPI
+from fastapi import Header, HTTPException
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 import re
 import uuid
 
 app = FastAPI(title="Agentic Scam Honeypot API")
+API_KEY = "guvi123"
+
 
 
 # =========================
@@ -154,7 +157,11 @@ class AnalyzeRequest(BaseModel):
 # API ENDPOINT
 # =========================
 @app.post("/analyze")
-def analyze(req: AnalyzeRequest):
+def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
+
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+
     conv_id = req.conversation_id or str(uuid.uuid4())
 
     # Initialize conversation memory
