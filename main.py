@@ -6,7 +6,7 @@ import re
 import uuid
 
 app = FastAPI(title="Agentic Scam Honeypot API")
-API_KEY = "guvi123"
+API_KEY = "35Cryptic821"
 
 
 
