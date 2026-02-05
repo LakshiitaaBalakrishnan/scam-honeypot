@@ -1,4 +1,5 @@
 import time
+import threading
 from fastapi import FastAPI
 from fastapi import Header, HTTPException
 from fastapi import Request
@@ -6,6 +7,8 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional
 import re
 import uuid
+import requests
+
 
 app = FastAPI(title="Agentic Scam Honeypot API")
 API_KEY = "35Cryptic821"
@@ -162,15 +165,16 @@ def honeypot_reply(scam_type: str, message: str):
 # =========================
 # REQUEST MODEL
 # =========================
-class AnalyzeRequest(BaseModel):
-    message: Optional[str] = None
-    text: Optional[str] = None
-    input: Optional[str] = None
-    content: Optional[str] = None
-    conversation_id: Optional[str] = None
+class IncomingMessage(BaseModel):
+    sender: str
+    text: str
+    timestamp: int
 
-    def get_message(self):
-        return self.message or self.text or self.input or self.content or ""
+class GuviRequest(BaseModel):
+    sessionId: str
+    message: IncomingMessage
+    conversationHistory: List[dict] = []
+    metadata: Optional[dict] = {}
 
 
 @app.post("/debug")
@@ -182,109 +186,68 @@ async def debug(request: Request):
     }
 
 
+
+def send_callback_async(session_id):
+    def task():
+        data = SESSION_DATA.get(session_id, {})
+
+        payload = {
+            "sessionId": session_id,
+            "scamDetected": True,
+            "totalMessagesExchanged": 1,
+            "extractedIntelligence": {
+                "bankAccounts": data.get("bank_accounts", []),
+                "upiIds": data.get("upi_ids", []),
+                "phishingLinks": data.get("phishing_links", []),
+                "phoneNumbers": data.get("phone_numbers", [])
+            },
+            "agentNotes": "Automated engagement completed"
+        }
+
+        try:
+            requests.post(
+                "https://hackathon.guvi.in/api/updateHoneyPotFinalResult",
+                json=payload,
+                timeout=2
+            )
+        except:
+            pass
+
+    threading.Thread(target=task).start()
+
 # =========================
 # API ENDPOINT
 # =========================
 @app.post("/analyze")
-def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
-    start = time.time()
+def analyze(req: GuviRequest, x_api_key: str = Header(None)):
 
-
+    # --- AUTH CHECK ---
     if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API Key")
+        return {"status": "error", "reply": "unauthorized"}
 
-    conv_id = req.conversation_id or str(uuid.uuid4())
+    # --- EXTRACT MESSAGE ---
+    user_msg = req.message.text
+    history_text = " ".join([h.get("text","") for h in req.conversationHistory])
+    combined = history_text + " " + user_msg
 
-    # Initialize conversation memory
-    if conv_id not in MEMORY:
-        MEMORY[conv_id] = []
+    session_id = req.sessionId
 
-    # Initialize cumulative extraction store
-    if conv_id not in SESSION_DATA:
-        SESSION_DATA[conv_id] = {
-            "upi_ids": [],
-            "bank_accounts": [],
-            "ifsc_codes": [],
-            "phone_numbers": [],
-            "phishing_links": []
-        }
-
-    # Store scammer message
-    user_msg = req.get_message()
-    MEMORY[conv_id].append({"role": "scammer", "message": user_msg})
+    # --- RUN YOUR EXISTING LOGIC ---
+    is_scam, confidence, scam_type = detect_scam(combined)
+    reply = honeypot_reply(scam_type, user_msg)
+    ext = extract_data(user_msg)
+    SESSION_DATA[session_id] = ext
 
 
-    # Detect scam + extract
-    is_scam, confidence, scam_type = detect_scam(user_msg)
-    extracted = extract_data(user_msg)
-
-
-    # Update session cumulative data
-    for k in extracted:
-        SESSION_DATA[conv_id][k].extend(extracted[k])
-
-    # Remove duplicates
-    for k in SESSION_DATA[conv_id]:
-        SESSION_DATA[conv_id][k] = list(set(SESSION_DATA[conv_id][k]))
-
-    # Agent reply
     if is_scam:
-        reply = honeypot_reply(scam_type, req.message)
-    else:
-        reply = "Hello. Can you explain your issue clearly?"
-
-    # Store agent reply
-    MEMORY[conv_id].append({"role": "agent", "message": reply})
-
-    # keep memory small for speed
-    if len(MEMORY[conv_id]) > 20:
-        MEMORY[conv_id] = MEMORY[conv_id][-10:]
-
-        # ----- METRICS CALCULATION -----
-    total_turns = len(MEMORY[conv_id])
-
-    scammer_messages = len([
-        m for m in MEMORY[conv_id] if m["role"] == "scammer"
-    ])
-
-    agent_messages = len([
-        m for m in MEMORY[conv_id] if m["role"] == "agent"
-    ])
-
-    extracted_items = (
-        len(SESSION_DATA[conv_id]["upi_ids"]) +
-        len(SESSION_DATA[conv_id]["bank_accounts"]) +
-        len(SESSION_DATA[conv_id]["ifsc_codes"]) +
-        len(SESSION_DATA[conv_id]["phishing_links"]) +
-        len(SESSION_DATA[conv_id]["phone_numbers"])
-    )
-
-    # prevent long processing
-    if time.time() - start > 5:
-        return {
-            "error": "processing timeout",
-            "conversation_id": conv_id
-        }
+        send_callback_async(session_id)
 
 
+    # --- RETURN GUVI FORMAT ---
     return {
-        "conversation_id": conv_id,
-        "is_scam": is_scam,
-        "scam_type": scam_type,
-        "confidence": confidence,
-        "agent_reply": reply,
-        "extracted_data_current_message": extracted,
-        "session_extracted_data": SESSION_DATA[conv_id],
-        "conversation": MEMORY[conv_id],
-
-        "metrics": {
-        "total_turns": total_turns,
-        "scammer_messages": scammer_messages,
-        "agent_messages": agent_messages,
-        "extracted_items": extracted_items
+        "status": "success",
+        "reply": reply
     }
-
-}
 
 
 # =========================
