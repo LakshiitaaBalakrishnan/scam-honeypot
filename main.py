@@ -1,3 +1,4 @@
+import time
 from fastapi import FastAPI
 from fastapi import Header, HTTPException
 from pydantic import BaseModel
@@ -170,6 +171,8 @@ class AnalyzeRequest(BaseModel):
 # =========================
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
+        start = time.time()
+
 
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
@@ -192,6 +195,10 @@ def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
 
     # Store scammer message
     MEMORY[conv_id].append({"role": "scammer", "message": req.message})
+        # keep memory small for speed
+    if len(MEMORY[conv_id]) > 20:
+        MEMORY[conv_id] = MEMORY[conv_id][-10:]
+
 
     # Detect scam + extract
     is_scam, confidence, scam_type = detect_scam(req.message)
@@ -232,6 +239,13 @@ def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
         len(SESSION_DATA[conv_id]["phishing_links"]) +
         len(SESSION_DATA[conv_id]["phone_numbers"])
     )
+
+        # prevent long processing
+    if time.time() - start > 5:
+        return {
+            "error": "processing timeout",
+            "conversation_id": conv_id
+        }
 
 
     return {
