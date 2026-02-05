@@ -208,7 +208,7 @@ def send_callback_async(session_id):
             requests.post(
                 "https://hackathon.guvi.in/api/updateHoneyPotFinalResult",
                 json=payload,
-                timeout=2
+                timeout=3
             )
         except:
             pass
@@ -240,7 +240,8 @@ def analyze(req: GuviRequest, x_api_key: str = Header(None)):
 
 
     if is_scam:
-        send_callback_async(session_id)
+        import threading
+        threading.Thread(target=send_callback, args=(session_id,)).start()
 
 
     # --- RETURN GUVI FORMAT ---
