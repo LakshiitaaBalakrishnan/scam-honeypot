@@ -172,6 +172,13 @@ class AnalyzeRequest(BaseModel):
         return self.message or self.text or self.input or self.content or ""
 
 
+@app.post("/debug")
+async def debug(request: Request):
+    body = await request.json()
+    return {
+        "received_body": body,
+        "keys": list(body.keys())
+    }
 
 
 # =========================
