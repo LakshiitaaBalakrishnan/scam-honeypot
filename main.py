@@ -139,11 +139,23 @@ def honeypot_reply(scam_type: str, message: str):
             "Meanwhile please share your UPI ID or bank account + IFSC."
         )
 
-    # ---- DEFAULT TRAP ----
+   # ---- DEFAULT FORMAL + CONTEXT AWARE ----
+
+    # Greeting responses
+    if any(greet in msg for greet in ["good morning", "good evening", "good afternoon", "hello", "hi", "hey"]):
+        return "Good day! How can I help you?"
+
+    # If message is just small talk
+    if len(msg.split()) <= 3:
+        return "Hello, could you please explain your request in detail?"
+
+    # If it sounds like service/payment related
     return (
-        "Okay I will make the payment. "
-        "Please share UPI ID or bank account number with IFSC."
+        "Thank you for the information. For security reasons I need to verify this request. "
+        "Kindly share your official contact details and the payment reference. "
+        "You can also send the UPI ID or bank account number with IFSC for verification."
     )
+
 
 # =========================
 # REQUEST MODEL
