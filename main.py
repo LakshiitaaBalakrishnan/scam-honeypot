@@ -241,7 +241,7 @@ def analyze(req: GuviRequest, x_api_key: str = Header(None)):
 
     if is_scam:
         import threading
-        threading.Thread(target=send_callback, args=(session_id,)).start()
+        threading.Thread(target=send_callback_async, args=(session_id,)).start()
 
 
     # --- RETURN GUVI FORMAT ---
