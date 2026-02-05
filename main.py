@@ -165,10 +165,12 @@ class AnalyzeRequest(BaseModel):
     message: Optional[str] = None
     text: Optional[str] = None
     input: Optional[str] = None
+    content: Optional[str] = None
     conversation_id: Optional[str] = None
 
     def get_message(self):
-        return self.message or self.text or self.input or ""
+        return self.message or self.text or self.input or self.content or ""
+
 
 
 
@@ -200,11 +202,11 @@ def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
         }
 
     # Store scammer message
+    user_msg = req.get_message()
     MEMORY[conv_id].append({"role": "scammer", "message": user_msg})
 
-    # Detect scam + extract
-    user_msg = req.get_message()
 
+    # Detect scam + extract
     is_scam, confidence, scam_type = detect_scam(user_msg)
     extracted = extract_data(user_msg)
 
