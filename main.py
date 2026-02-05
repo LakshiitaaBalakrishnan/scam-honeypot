@@ -171,7 +171,7 @@ class AnalyzeRequest(BaseModel):
 # =========================
 @app.post("/analyze")
 def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
-        start = time.time()
+    start = time.time()
 
 
     if x_api_key != API_KEY:
@@ -195,9 +195,6 @@ def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
 
     # Store scammer message
     MEMORY[conv_id].append({"role": "scammer", "message": req.message})
-        # keep memory small for speed
-    if len(MEMORY[conv_id]) > 20:
-        MEMORY[conv_id] = MEMORY[conv_id][-10:]
 
 
     # Detect scam + extract
@@ -221,6 +218,10 @@ def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
     # Store agent reply
     MEMORY[conv_id].append({"role": "agent", "message": reply})
 
+    # keep memory small for speed
+    if len(MEMORY[conv_id]) > 20:
+        MEMORY[conv_id] = MEMORY[conv_id][-10:]
+
         # ----- METRICS CALCULATION -----
     total_turns = len(MEMORY[conv_id])
 
@@ -240,7 +241,7 @@ def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
         len(SESSION_DATA[conv_id]["phone_numbers"])
     )
 
-        # prevent long processing
+    # prevent long processing
     if time.time() - start > 5:
         return {
             "error": "processing timeout",
@@ -265,7 +266,7 @@ def analyze(req: AnalyzeRequest, x_api_key: str = Header(None)):
         "extracted_items": extracted_items
     }
 
-    }
+}
 
 
 # =========================
